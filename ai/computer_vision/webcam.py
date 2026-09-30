@@ -1,4 +1,22 @@
 import cv2
+import numpy as np
+
+
+def preprocess_frame(frame, width=640):
+    if frame is None:
+        return None
+
+    height, current_width = frame.shape[:2]
+
+    if current_width != width:
+        ratio = width / current_width
+        new_height = int(height * ratio)
+        frame = cv2.resize(frame, (width, new_height))
+
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    normalized_frame = rgb_frame.astype(np.float32) / 255.0
+
+    return normalized_frame
 
 
 def start_webcam():
@@ -15,7 +33,16 @@ def start_webcam():
             print("Unable to read frame")
             break
 
-        cv2.imshow("MindSense - Webcam Test", frame)
+        processed_frame = preprocess_frame(frame)
+
+        if processed_frame is None:
+            print("Invalid frame")
+            continue
+
+        display_frame = (processed_frame * 255).astype(np.uint8)
+        display_frame = cv2.cvtColor(display_frame, cv2.COLOR_RGB2BGR)
+
+        cv2.imshow("MindSense - Preprocessed Webcam", display_frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
