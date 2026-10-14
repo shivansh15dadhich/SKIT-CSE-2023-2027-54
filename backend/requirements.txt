@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-motor
-pydantic-settings
-python-dotenv
-email-validator
