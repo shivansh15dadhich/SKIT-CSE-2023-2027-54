@@ -67,6 +67,10 @@ The detector provides the face bounding box, which is then used for face croppin
 
 The detected face region is cropped from the original frame.
 
+Before resizing, the crop is rotated using YuNet's eye keypoints to correct
+in-plane eye-line tilt. The webcam view shows the measured eye-line angle, and
+an `Aligned Face` preview is available while the pipeline runs.
+
 The cropped face is resized to:
 
 ```text
@@ -117,7 +121,23 @@ The extracted features are converted into a NumPy feature vector:
 
 The vector is represented using `float32` values and is intended to be passed to the backend/ML layer during project integration.
 
-### 8. Emotion Detection
+### 8. Standardized Facial-Affect Output
+
+`build_facial_affect_output()` creates a JSON-compatible payload for each
+processed frame. It includes a UTC timestamp, schema version, face-detection
+status, DeepFace's dominant emotion and normalized emotion scores, named
+geometric features, and a feature vector in this order:
+
+```text
+left_ear, right_ear, average_ear, mouth_ratio, eyebrow_distance
+```
+
+Emotion scores are represented as probabilities from `0` to `1`. Missing faces,
+emotion values, or landmarks are represented by `false` status or `null` values
+without changing the payload shape. Press `S` in the webcam window to print the
+latest payload as JSON for inspection or future backend integration.
+
+### 9. Emotion Detection
 
 DeepFace is used for facial emotion classification.
 
@@ -133,13 +153,15 @@ The `skip` detector is used because the face has already been detected and cropp
 
 The dominant emotion is displayed in the webcam window.
 
-### 9. Real-time Optimization
+### 10. Real-time Optimization
 
 DeepFace emotion inference is computationally more expensive than the other processing stages.
 
 Therefore, emotion inference is performed approximately once per second while the latest result continues to be displayed between predictions.
 
 This reduces unnecessary repeated model inference during real-time webcam processing.
+The webcam view also displays an approximate FPS value, refreshed about once per
+second.
 
 ## Project Structure
 
@@ -150,27 +172,28 @@ ai/
     │   ├── face_detection_yunet_2026may.onnx
     │   └── face_landmarker.task
     │
+    ├── affect_output.py
+    ├── emotion_analysis.py
+    ├── face_processing.py
+    ├── facial_features.py
     ├── webcam.py
     └── README.md
 ```
 
 ## Requirements
 
-The current implementation uses a dedicated Python environment for DeepFace:
+The Computer Vision module uses Python 3.11 and the following tested dependency versions:
 
-```text
-Python 3.11
-```
+| Library | Version |
+|---|---|
+| NumPy | 1.26.4 |
+| OpenCV | 4.10.0.84 |
+| MediaPipe | 0.10.21 |
+| TensorFlow | 2.15.1 |
+| Keras | 2.15.0 |
+| DeepFace | 0.0.93 |
 
-Main libraries:
-
-```text
-OpenCV
-NumPy
-MediaPipe
-DeepFace
-TensorFlow
-```
+A dedicated virtual environment named `.venv-deepface` is used to isolate these dependencies from other project environments.
 
 ## Running the Module
 
@@ -186,14 +209,10 @@ The webcam window will open and display:
 - Facial landmarks
 - Facial feature values
 - Current dominant emotion
+- Eye-line roll angle and approximate FPS
 
-Press:
-
-```text
-Q
-```
-
-to close the application.
+Press `S` to print the latest standardized facial-affect JSON payload. Press
+`Q` to close the application.
 
 ## Models
 
@@ -224,6 +243,9 @@ DeepFace downloads its required emotion model weights automatically when require
 - The extracted feature vector is currently prepared for future backend/ML integration.
 - Temporal analysis and emotion smoothing are not currently implemented.
 - Backend/database integration is outside the current CV module.
+- Runtime validation of alignment quality and FPS under different lighting and
+  camera conditions has not yet been documented.
+- Facial emotion predictions are estimates and may be affected by lighting, camera quality, facial expressions, and individual differences. They should not be treated as a mental-health diagnosis or definitive evidence of a person's emotional state.
 
 ## Future Integration
 
@@ -248,3 +270,35 @@ This module covers the Computer Vision responsibilities of the MindSense project
 - Facial feature extraction
 - Emotion detection
 - CV pipeline testing and optimization
+
+## Environment Setup
+
+Run these commands from the repository root in PowerShell.
+
+Create the virtual environment:
+
+```powershell
+py -3.11 -m venv .venv-deepface
+```
+
+Activate it:
+
+```powershell
+.\.venv-deepface\Scripts\Activate.ps1
+```
+
+Install the tested dependencies:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install numpy==1.26.4 opencv-python==4.10.0.84 mediapipe==0.10.21
+python -m pip install tensorflow==2.15.1 deepface==0.0.93
+```
+
+If TensorFlow encounters an `ml_dtypes` compatibility error involving JAX, and JAX is not required by another project component, run:
+
+```powershell
+python -m pip uninstall -y jax jaxlib
+```
+
+Use Python 3.11 for this tested TensorFlow and DeepFace setup.
