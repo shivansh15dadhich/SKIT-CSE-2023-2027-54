@@ -1,9 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { Link } from "react-router-dom";
+import Alert from "../components/ui/Alert";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import StatusIndicator from "../components/ui/StatusIndicator";
+import TextAreaField from "../components/ui/TextAreaField";
+import EmotionCard from "../components/visualizations/EmotionCard";
+import SentimentIndicator from "../components/visualizations/SentimentIndicator";
+import EmotionProbabilityChart from "../components/charts/EmotionProbabilityChart";
+import { useSession } from "../context/SessionContext";
+import { sampleFacialTimeline } from "../data/sampleData";
+import { analyzeText } from "../services/analysisService";
+
+const MIN_WORDS = 3;
 
 function Analysis() {
+  const { facialSamples, textEntries, addFacialSample, addTextEntry, resetSession } =
+    useSession();
+  const sampleIndexRef = useRef(0);
+
+  const [journalText, setJournalText] = useState("");
+  const [journalError, setJournalError] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const latestAffect = facialSamples[facialSamples.length - 1];
+  const latestText = textEntries[textEntries.length - 1];
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -72,9 +95,20 @@ function Analysis() {
   const startAudioRecording = (stream) => {
     const audioStream = new MediaStream(stream.getAudioTracks());
 
-    const recorder = new MediaRecorder(audioStream, {
-      mimeType: "audio/webm",
-    });
+    if (typeof MediaRecorder === "undefined") {
+      console.warn("MediaRecorder is not supported in this browser.");
+      return;
+    }
+
+    // Safari does not support audio/webm, so fall back to the browser default.
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : "";
+
+    const recorder = new MediaRecorder(
+      audioStream,
+      mimeType ? { mimeType } : undefined,
+    );
 
     audioChunksRef.current = [];
 
@@ -86,7 +120,7 @@ function Analysis() {
 
     recorder.onstop = () => {
       const audioBlob = new Blob(audioChunksRef.current, {
-        type: "audio/webm",
+        type: recorder.mimeType || "audio/webm",
       });
 
       console.log("Audio recording created:", audioBlob);
@@ -99,6 +133,11 @@ function Analysis() {
     mediaRecorderRef.current = recorder;
   };
   const startFrameCapture = () => {
+    // Never run two capture loops at once.
+    if (frameCaptureRef.current) {
+      clearInterval(frameCaptureRef.current);
+    }
+
     capturedFramesRef.current = [];
 
     frameCaptureRef.current = setInterval(() => {
@@ -139,7 +178,18 @@ function Analysis() {
             capturedFramesRef.current.shift();
           }
 
-          console.log("Captured frames:", capturedFramesRef.current.length);
+          // TODO: send `blob` to the CV service and store its response.
+          // Until then, replay the sample facial affect timeline.
+          const sample =
+            sampleFacialTimeline[
+              sampleIndexRef.current % sampleFacialTimeline.length
+            ];
+          sampleIndexRef.current += 1;
+
+          addFacialSample({
+            ...sample,
+            timestamp_utc: new Date().toISOString(),
+          });
         },
         "image/jpeg",
         0.75,
@@ -152,6 +202,13 @@ function Analysis() {
   const startSession = async () => {
     setError("");
 
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(
+        "Camera access is not available. Open the app over https or localhost in a modern browser.",
+      );
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -159,6 +216,9 @@ function Analysis() {
       });
 
       streamRef.current = stream;
+
+      resetSession();
+      sampleIndexRef.current = 0;
 
       const videoTracks = stream.getVideoTracks();
       const audioTracks = stream.getAudioTracks();
@@ -184,6 +244,10 @@ function Analysis() {
   // ATTACH CAMERA STREAM
   // =========================
   useEffect(() => {
+    // play() resolves asynchronously; ignore it if this effect was cleaned up
+    // first (React StrictMode runs effects twice in development).
+    let cancelled = false;
+
     if (
       sessionStarted &&
       cameraEnabled &&
@@ -195,19 +259,27 @@ function Analysis() {
       videoRef.current
         .play()
         .then(() => {
-          startFrameCapture();
+          if (!cancelled) {
+            startFrameCapture();
+          }
         })
         .catch((err) => {
-          console.error("Video playback error:", err);
+          if (!cancelled) {
+            console.error("Video playback error:", err);
+          }
         });
     }
 
     return () => {
+      cancelled = true;
+
       if (frameCaptureRef.current) {
         clearInterval(frameCaptureRef.current);
         frameCaptureRef.current = null;
       }
     };
+    // Only re-attach the stream when the session or camera state changes.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStarted, cameraEnabled]);
 
   // =========================
@@ -223,7 +295,10 @@ function Analysis() {
       animationFrameRef.current = null;
     }
 
-    if (audioContextRef.current) {
+    if (
+      audioContextRef.current &&
+      audioContextRef.current.state !== "closed"
+    ) {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
@@ -256,12 +331,57 @@ function Analysis() {
   };
 
   // =========================
+  // TEXT JOURNAL
+  // =========================
+  const submitJournal = async (event) => {
+    event.preventDefault();
+
+    const words = journalText.trim().split(/\s+/).filter(Boolean);
+
+    if (words.length < MIN_WORDS) {
+      setJournalError(`Please write at least ${MIN_WORDS} words.`);
+      return;
+    }
+
+    setJournalError("");
+    setAnalyzing(true);
+
+    try {
+      const analysis = await analyzeText(journalText);
+
+      addTextEntry({
+        date: new Date().toISOString().slice(0, 10),
+        text: journalText.trim(),
+        analysis,
+      });
+
+      setJournalText("");
+    } catch (err) {
+      console.error("Text analysis error:", err);
+      setJournalError("Could not analyse the text. Please try again.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // =========================
   // CLEANUP
   // =========================
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      if (frameCaptureRef.current) {
+        clearInterval(frameCaptureRef.current);
+      }
+
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        mediaRecorderRef.current.stop();
       }
 
       if (
@@ -284,26 +404,26 @@ function Analysis() {
       <Navbar />
 
       <main className="mx-auto w-full max-w-[1000px] px-6 py-10">
+        <Alert variant="info" title="Preview mode" className="mb-4">
+          The CV and NLP services are not connected yet. Facial results replay
+          sample data and text is analysed in the browser.
+        </Alert>
+
         {/* =========================
-            ANALYSIS PANELS
+            CAPTURE PANELS
         ========================= */}
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* =========================
-              FACE ANALYSIS
-          ========================= */}
-          <div className="rounded-lg border border-[#293535] bg-[#191e1e] p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-[#58d9d0]">
-                ◉ Face Analysis
-              </h2>
-
+          {/* Face capture */}
+          <Card
+            title="Face Analysis"
+            icon="◉"
+            status={
               <span className="text-[8px] text-[#657675]">
                 {cameraEnabled ? "ACTIVE" : "READY"}
               </span>
-            </div>
-
-            {/* Camera */}
-            <div className="relative mt-3 h-[210px] overflow-hidden rounded-md border border-[#29403f] bg-[#101414]">
+            }
+          >
+            <div className="relative h-[210px] overflow-hidden rounded-md border border-[#29403f] bg-[#101414]">
               {sessionStarted && cameraEnabled ? (
                 <video
                   ref={videoRef}
@@ -326,39 +446,25 @@ function Analysis() {
                 </div>
               )}
 
-              {/* Camera Status */}
-              <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-[#101414]/80 px-2 py-1">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    cameraEnabled
-                      ? "animate-pulse bg-[#58d9d0]"
-                      : "bg-[#657675]"
-                  }`}
-                />
-
-                <span className="text-[8px] tracking-wide text-[#899595]">
-                  {cameraEnabled ? "CAMERA ACTIVE" : "WAITING"}
-                </span>
-              </div>
+              <StatusIndicator
+                status={cameraEnabled ? "active" : "idle"}
+                label={cameraEnabled ? "CAMERA ACTIVE" : "WAITING"}
+                className="absolute bottom-3 left-3"
+              />
             </div>
-          </div>
+          </Card>
 
-          {/* =========================
-              VOICE ANALYSIS
-          ========================= */}
-          <div className="rounded-lg border border-[#293535] bg-[#191e1e] p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-[#58d9d0]">
-                ♪ Voice Analysis
-              </h2>
-
+          {/* Voice capture */}
+          <Card
+            title="Voice Analysis"
+            icon="♪"
+            status={
               <span className="text-[8px] text-[#657675]">
                 {microphoneEnabled ? "ACTIVE" : "READY"}
               </span>
-            </div>
-
-            {/* Voice Area */}
-            <div className="mt-3 flex h-[210px] flex-col items-center justify-center rounded-md border border-[#29403f] bg-[#101414]">
+            }
+          >
+            <div className="flex h-[210px] flex-col items-center justify-center rounded-md border border-[#29403f] bg-[#101414]">
               <p className="text-[9px] italic text-[#657675]">
                 {microphoneEnabled
                   ? "Listening for voice input..."
@@ -380,66 +486,88 @@ function Analysis() {
                 ))}
               </div>
 
-              <div className="mt-6 flex w-full items-center justify-between px-4">
-                <span className="text-[8px] text-[#657675]">
-                  {microphoneEnabled ? "LISTENING..." : "WAITING"}
-                </span>
-
-                <span className="rounded-full bg-[#242032] px-2 py-1 text-[7px] text-[#a69db8]">
-                  READY
-                </span>
-
-                <span className="rounded-full bg-[#203635] px-2 py-1 text-[7px] text-[#58d9d0]">
-                  INPUT
-                </span>
-              </div>
+              <StatusIndicator
+                status={microphoneEnabled ? "active" : "idle"}
+                label={microphoneEnabled ? "MICROPHONE ACTIVE" : "WAITING"}
+                className="mt-6"
+              />
             </div>
-          </div>
+          </Card>
         </section>
 
         {/* =========================
-            METRICS
+            LIVE RESULTS
         ========================= */}
-        <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
-          {/* Attention */}
-          <div className="rounded-md border border-[#293535] bg-[#191e1e] px-5 py-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] text-[#899595]">ATTENTION LEVEL</span>
+        <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Facial emotion */}
+          <Card
+            title="Facial Emotion"
+            icon="✣"
+            status={
+              <StatusIndicator
+                status={facialSamples.length ? "warning" : "idle"}
+                label={
+                  facialSamples.length
+                    ? `SAMPLE DATA · ${facialSamples.length} FRAMES`
+                    : "NO FRAMES YET"
+                }
+              />
+            }
+          >
+            <EmotionCard affect={latestAffect} />
 
-              <span className="text-sm font-semibold text-[#58d9d0]">--</span>
+            <div className="mt-4">
+              <EmotionProbabilityChart scores={latestAffect?.emotion.scores} />
             </div>
+          </Card>
 
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#25302f]">
-              <div className="h-full w-0 rounded-full bg-[#58d9d0]" />
+          {/* Text sentiment */}
+          <Card
+            title="Text Sentiment"
+            icon="✎"
+            status={
+              <span className="text-[8px] text-[#657675]">
+                {textEntries.length} ENTRIES
+              </span>
+            }
+          >
+            <form onSubmit={submitJournal} className="space-y-3">
+              <TextAreaField
+                label="How have you been feeling today?"
+                value={journalText}
+                onChange={(value) => {
+                  setJournalText(value);
+                  if (journalError) setJournalError("");
+                }}
+                placeholder="Write a few sentences about your day..."
+                maxLength={2000}
+                error={journalError}
+                hint="Your text is used only for this session."
+                disabled={analyzing}
+              />
+
+              <Button
+                type="submit"
+                size="sm"
+                disabled={analyzing || !journalText.trim()}
+              >
+                {analyzing ? "Analysing..." : "Analyse Text"}
+              </Button>
+            </form>
+
+            <div className="mt-4">
+              <SentimentIndicator analysis={latestText?.analysis} />
             </div>
-          </div>
-
-          {/* Heart Rate */}
-          <div className="rounded-md border border-[#293535] bg-[#191e1e] px-5 py-4">
-            <span className="text-[8px] text-[#657675]">HEART RATE</span>
-
-            <div className="mt-2 flex items-end gap-2">
-              <span className="text-xl text-[#dce4e2]">--</span>
-
-              <span className="mb-1 text-[8px] text-[#657675]">BPM</span>
-            </div>
-          </div>
-
-          {/* Cognitive Load */}
-          <div className="rounded-md border border-[#293535] bg-[#191e1e] px-5 py-4">
-            <span className="text-[8px] text-[#657675]">COGNITIVE LOAD</span>
-
-            <div className="mt-2 text-xl text-[#dce4e2]">--</div>
-          </div>
+          </Card>
         </section>
 
         {/* =========================
             ERROR
         ========================= */}
         {error && (
-          <div className="mx-auto mt-5 max-w-xl rounded-md border border-red-900/50 bg-red-950/20 px-4 py-3 text-center text-[9px] text-red-300">
+          <Alert variant="error" className="mx-auto mt-5 max-w-xl">
             {error}
-          </div>
+          </Alert>
         )}
 
         {/* =========================
@@ -447,27 +575,22 @@ function Analysis() {
         ========================= */}
         <section className="flex flex-col items-center py-10">
           {!sessionStarted ? (
-            <button
-              onClick={startSession}
-              className="rounded-full border border-[#58d9d0] bg-[#58d9d0] px-8 py-3 text-xs font-semibold text-[#102020] transition-transform hover:-translate-y-0.5"
-            >
-              Begin Session
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button onClick={startSession}>Begin Session</Button>
+
+              {(facialSamples.length > 0 || textEntries.length > 0) && (
+                <Button to="/results" variant="secondary">
+                  View Results
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-3">
-              <button
-                onClick={stopSession}
-                className="rounded-full border border-[#29403f] bg-transparent px-7 py-3 text-xs font-semibold text-[#9ca9a8] transition-all hover:border-red-400 hover:text-red-300"
-              >
+              <Button variant="danger" onClick={stopSession}>
                 End Session
-              </button>
+              </Button>
 
-              <Link
-                to="/results"
-                className="rounded-full border border-[#58d9d0] bg-[#58d9d0] px-7 py-3 text-xs font-semibold text-[#102020] transition-transform hover:-translate-y-0.5"
-              >
-                View Results
-              </Link>
+              <Button to="/results">View Results</Button>
             </div>
           )}
 

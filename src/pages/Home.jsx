@@ -34,9 +34,12 @@ function Home() {
               Start Analysis
             </Link>
 
-            <button className="rounded-full border border-[#29403f] bg-transparent px-6 py-3 text-[11px] font-semibold text-[#9ca9a8] transition-all hover:border-[#58d9d0] hover:text-[#58d9d0]">
+            <Link
+              to="/results"
+              className="rounded-full border border-[#29403f] bg-transparent px-6 py-3 text-[11px] font-semibold text-[#9ca9a8] transition-all hover:border-[#58d9d0] hover:text-[#58d9d0]"
+            >
               View Demo
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -107,9 +110,12 @@ function Home() {
               emotional intelligence and well-being.
             </p>
 
-            <button className="mt-6 rounded-full border border-[#58d9d0] bg-[#58d9d0] px-7 py-3 text-[11px] font-semibold text-[#102020] transition-transform hover:-translate-y-0.5">
-              Create Your Account
-            </button>
+            <Link
+              to="/analysis"
+              className="mt-6 inline-block rounded-full border border-[#58d9d0] bg-[#58d9d0] px-7 py-3 text-[11px] font-semibold text-[#102020] transition-transform hover:-translate-y-0.5"
+            >
+              Start Your First Session
+            </Link>
           </div>
         </section>
       </section>

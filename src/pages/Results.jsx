@@ -1,7 +1,38 @@
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import Alert from "../components/ui/Alert";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import EmotionProbabilityChart from "../components/charts/EmotionProbabilityChart";
+import EmotionTimelineChart from "../components/charts/EmotionTimelineChart";
+import SentimentTrendChart from "../components/charts/SentimentTrendChart";
+import SessionResultPanel from "../components/visualizations/SessionResultPanel";
+import { useSession } from "../context/SessionContext";
+import { sampleFacialTimeline, sampleTextEntries } from "../data/sampleData";
+import useTrendReport from "../hooks/useTrendReport";
+import {
+  averageEmotionScores,
+  dominantEmotion,
+  facialNegativity,
+} from "../services/analysisService";
 
 function Results() {
+  const { facialSamples, textEntries } = useSession();
+
+  const usingSampleFaces = facialSamples.length === 0;
+  const usingSampleText = textEntries.length === 0;
+
+  const samples = usingSampleFaces ? sampleFacialTimeline : facialSamples;
+  const entries = usingSampleText ? sampleTextEntries : textEntries;
+
+  const { report, error } = useTrendReport(entries);
+
+  const averageScores = averageEmotionScores(samples);
+  const faceNegativity = facialNegativity(averageScores);
+  const textNegativity =
+    entries.reduce((sum, e) => sum + e.analysis.negative_score, 0) /
+    entries.length;
+
   return (
     <div className="min-h-screen bg-[#111414] text-white">
       <Navbar />
@@ -12,140 +43,110 @@ function Results() {
         ========================= */}
         <section className="text-center">
           <h1 className="font-serif text-2xl text-[#dce4e2] md:text-3xl">
-            Analysis Complete
+            Session Summary
           </h1>
 
           <p className="mt-2 text-[9px] text-[#657675]">
-            Your session data has been processed using clinical-grade AI.
+            {samples.length} facial samples · {entries.length} text entries
           </p>
         </section>
+
+        {(usingSampleFaces || usingSampleText) && (
+          <Alert variant="info" className="mt-6">
+            {usingSampleFaces && usingSampleText
+              ? "No session data yet, so this page shows sample data. Run a session on the Analysis page to see your own results."
+              : usingSampleFaces
+                ? "No facial frames were captured in this session, so facial results use sample data."
+                : "No text entries were added in this session, so text results use sample data."}
+          </Alert>
+        )}
+
+        {error && (
+          <Alert variant="error" className="mt-6">
+            {error}
+          </Alert>
+        )}
 
         {/* =========================
             MAIN RESULT
         ========================= */}
-        <section className="mt-8 rounded-lg border border-[#4a4930] bg-[#191e1e] p-6 md:p-8">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_1.3fr_1fr]">
-            {/* Confidence */}
-            <div className="flex flex-col items-center justify-center">
-              <div className="relative flex h-36 w-36 items-center justify-center rounded-full border-[5px] border-[#58d9d0]">
-                <div className="text-center">
-                  <div className="text-3xl font-semibold text-[#58d9d0]">
-                    85%
-                  </div>
-
-                  <div className="text-[8px] text-[#657675]">CONFIDENCE</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Result */}
-            <div className="flex flex-col justify-center">
-              <span className="text-[8px] uppercase tracking-[1.5px] text-[#a69d36]">
-                DETECTION STATUS
-              </span>
-
-              <h2 className="mt-3 font-serif text-3xl text-[#dce4e2]">
-                Mild Anxiety
-                <br />
-                Detected
-              </h2>
-
-              <p className="mt-4 text-[10px] leading-5 text-[#899595]">
-                Based on the subtle micro-expressions and tonal shifts in your
-                vocal pattern, our system has identified markers consistent with
-                mild psychological arousal. This state often correlates with
-                situational stress rather than chronic clinical concern.
-              </p>
-            </div>
-
-            {/* Scores */}
-            <div className="flex flex-col justify-center gap-5">
-              {/* Face */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] text-[#657675]">FACE SCORE</span>
-
-                  <span className="text-xs text-[#dce4e2]">
-                    78<span className="text-[7px]"> /100</span>
-                  </span>
-                </div>
-
-                <div className="mt-2 h-1 w-full rounded-full bg-[#293535]">
-                  <div className="h-full w-[78%] rounded-full bg-[#58d9d0]" />
-                </div>
-              </div>
-
-              {/* Voice */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] text-[#657675]">VOICE SCORE</span>
-
-                  <span className="text-xs text-[#dce4e2]">
-                    92<span className="text-[7px]"> /100</span>
-                  </span>
-                </div>
-
-                <div className="mt-2 h-1 w-full rounded-full bg-[#293535]">
-                  <div className="h-full w-[92%] rounded-full bg-[#58d9d0]" />
-                </div>
-              </div>
-
-              {/* Combined */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] text-[#657675]">
-                    COMBINED SCORE
-                  </span>
-
-                  <span className="text-xs text-[#dce4e2]">
-                    85<span className="text-[7px]"> /100</span>
-                  </span>
-                </div>
-
-                <div className="mt-2 h-1 w-full rounded-full bg-[#293535]">
-                  <div className="h-full w-[85%] rounded-full bg-[#58d9d0]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div className="mt-6">
+          {report ? (
+            <SessionResultPanel
+              dominant={dominantEmotion(averageScores)}
+              faceNegativity={faceNegativity}
+              textNegativity={textNegativity}
+              combinedNegativity={(faceNegativity + textNegativity) / 2}
+              trendReport={report}
+            />
+          ) : (
+            <div className="h-48 animate-pulse rounded-lg border border-[#293535] bg-[#191e1e]" />
+          )}
+        </div>
 
         {/* =========================
-            CLINICAL INSIGHTS
+            CHARTS
         ========================= */}
-        <section className="mt-5 rounded-md border border-[#293535] bg-[#191e1e] p-5">
-          <div className="flex gap-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#203635] text-[#58d9d0]">
-              ✣
-            </div>
+        <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card title="Average Facial Emotion" icon="◉">
+            <EmotionProbabilityChart scores={averageScores} height={220} />
+          </Card>
 
-            <div>
-              <h3 className="text-xs font-semibold text-[#dce4e2]">
-                AI Clinical Insights
-              </h3>
-
-              <p className="mt-2 text-[9px] leading-5 text-[#899595]">
-                The analysis suggests your current physiological state is likely
-                reactive to environmental factors. We recommend a 5-minute
-                breathing exercise to recalibrate your baseline. Your "Voice
-                Score" indicates strong expressive clarity, while the "Face
-                Score" noted minor micro-expression markers.
-              </p>
-            </div>
-          </div>
+          <Card title="Emotion Timeline" icon="∿">
+            <EmotionTimelineChart samples={samples} />
+          </Card>
         </section>
+
+        <Card title="Text Sentiment Trend" icon="✎" className="mt-4">
+          <SentimentTrendChart entries={entries} />
+        </Card>
+
+        {/* =========================
+            SUGGESTIONS
+        ========================= */}
+        {report && (
+          <section className="mt-4 rounded-md border border-[#293535] bg-[#191e1e] p-5">
+            <div className="flex gap-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#203635] text-[#58d9d0]">
+                ✣
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold text-[#dce4e2]">
+                  Suggested next steps
+                </h3>
+
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-[10px] leading-5 text-[#899595]">
+                  {report.suggestions.map((suggestion) => (
+                    <li key={suggestion}>{suggestion}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <p className="mt-5 text-center text-[8px] leading-4 text-[#657675]">
+          MindSense is a non-clinical screening tool. These results show
+          emotional trend signals and are not a diagnosis of anxiety,
+          depression or any other condition.
+        </p>
 
         {/* =========================
             ACTION BUTTONS
         ========================= */}
-        <section className="mt-7 flex flex-wrap items-center justify-center gap-3">
-          <button className="rounded-full border border-[#29403f] bg-transparent px-6 py-2.5 text-[10px] font-semibold text-[#9ca9a8] transition-all hover:border-[#58d9d0] hover:text-[#58d9d0]">
+        <section className="mt-7 flex flex-wrap items-center justify-center gap-3 print:hidden">
+          <Button to="/analysis" variant="secondary" size="sm">
             ↻ Retake Analysis
-          </button>
+          </Button>
 
-          <button className="rounded-full border border-[#58d9d0] bg-[#58d9d0] px-6 py-2.5 text-[10px] font-semibold text-[#102020] transition-transform hover:-translate-y-0.5">
+          <Button to="/dashboard" variant="secondary" size="sm">
+            View Trends
+          </Button>
+
+          <Button size="sm" onClick={() => window.print()}>
             ↓ Download Report
-          </button>
+          </Button>
         </section>
       </main>
 
