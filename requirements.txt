@@ -3,5 +3,7 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 pydantic>=2.8,<3
 nltk>=3.9,<4
-transformers>=4.45,<5
-torch>=2.2,<3
+
+# Optional transformer sentiment:
+# Install separately only if needed: python -m pip install "transformers>=4.45,<5" "torch>=2.2,<3"
+# Then set MINDSENSE_ENABLE_TRANSFORMER=1 before launching the app.
