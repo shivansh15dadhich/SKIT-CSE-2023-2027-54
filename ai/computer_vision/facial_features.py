@@ -3,6 +3,11 @@
 import cv2
 import numpy as np
 
+try:
+    from .landmark_tracking import FACIAL_REGIONS, FEATURE_LANDMARKS
+except ImportError:
+    from landmark_tracking import FACIAL_REGIONS, FEATURE_LANDMARKS
+
 
 def landmark_point(landmarks, index, width, height):
     point = landmarks[index]
@@ -40,10 +45,10 @@ def calculate_mouth_ratio(
     width,
     height
 ):
-    left = landmark_point(landmarks, 61, width, height)
-    right = landmark_point(landmarks, 291, width, height)
-    top = landmark_point(landmarks, 13, width, height)
-    bottom = landmark_point(landmarks, 14, width, height)
+    left = landmark_point(landmarks, FEATURE_LANDMARKS["mouth_left"], width, height)
+    right = landmark_point(landmarks, FEATURE_LANDMARKS["mouth_right"], width, height)
+    top = landmark_point(landmarks, FEATURE_LANDMARKS["mouth_top"], width, height)
+    bottom = landmark_point(landmarks, FEATURE_LANDMARKS["mouth_bottom"], width, height)
 
     horizontal = calculate_distance(left, right)
     vertical = calculate_distance(top, bottom)
@@ -60,14 +65,14 @@ def calculate_eyebrow_distance(
 ):
     left_eyebrow = landmark_point(
         landmarks,
-        105,
+        FEATURE_LANDMARKS["left_eyebrow"],
         width,
         height
     )
 
     right_eyebrow = landmark_point(
         landmarks,
-        334,
+        FEATURE_LANDMARKS["right_eyebrow"],
         width,
         height
     )
@@ -79,14 +84,14 @@ def calculate_eyebrow_distance(
 
     face_left = landmark_point(
         landmarks,
-        234,
+        FEATURE_LANDMARKS["face_left"],
         width,
         height
     )
 
     face_right = landmark_point(
         landmarks,
-        454,
+        FEATURE_LANDMARKS["face_right"],
         width,
         height
     )
@@ -102,23 +107,8 @@ def calculate_eyebrow_distance(
     return distance / face_width
 
 def extract_facial_features(landmarks, width, height):
-    left_eye_indices = [
-        33,
-        160,
-        158,
-        133,
-        153,
-        144
-    ]
-
-    right_eye_indices = [
-        362,
-        385,
-        387,
-        263,
-        373,
-        380
-    ]
+    left_eye_indices = FACIAL_REGIONS["left_eye"]
+    right_eye_indices = FACIAL_REGIONS["right_eye"]
 
     left_ear = calculate_eye_aspect_ratio(
         landmarks,

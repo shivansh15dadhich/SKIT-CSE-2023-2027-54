@@ -163,6 +163,80 @@ This reduces unnecessary repeated model inference during real-time webcam proces
 The webcam view also displays an approximate FPS value, refreshed about once per
 second.
 
+## Facial Landmark Tracking
+
+`landmark_tracking.py` adds short-term continuity checks to the existing
+single-face path. YuNet still selects the first face, and the existing
+MediaPipe Face Landmarker still runs in `IMAGE` mode on the aligned 224 × 224
+face crop. The model and tracker are each initialized once when the webcam
+starts; the tracker receives the resulting landmark list on each frame.
+
+MediaPipe `x`, `y`, and `z` values are preserved as normalized face-crop
+coordinates (the feature helpers continue converting `x` and `y` to crop
+pixels for their existing formulas). FaceLandmarker returns
+`FaceLandmarkerResult.face_landmarks` as a list of faces, each containing
+`NormalizedLandmark` objects. The installed attention model provides 478
+points (468 mesh points plus 10 iris points); the selected regions use the
+model's existing topology and feature ordering. `FACIAL_REGIONS` in
+`landmark_tracking.py` centralizes selected Face Mesh indices: eye outlines
+match the existing EAR calculation, eyebrows include the existing 105/334
+feature points, the mouth includes 61/13/14/291, and the face outline uses
+234/10/454/152. These are geometric regions, not psychological indicators.
+All coordinates must be finite and image-plane x/y must lie in `[0, 1]`; z is
+relative depth and may be negative. An invalid coordinate invalidates that
+frame and clears the comparison baseline.
+
+`FacialLandmarkTracker.update()` returns a JSON-compatible record with:
+
+- `frame_id`, `face_detected`, `tracking_valid`, and `status` (`initialized`,
+  `tracked`, `possible_discontinuity`, `invalid_landmarks`, or `no_face`).
+- `landmarks` (all MediaPipe-normalized x/y/z points) and selected `regions`;
+  both are `null` for no face or invalid input. There are no fabricated points.
+- `mean_displacement`, the mean Euclidean x/y change over the selected
+  feature-region points, in normalized crop-coordinate units, plus `stable`.
+- `processing_latency_ms`, measured with `time.perf_counter_ns()` around
+  MediaPipe detection and tracking in the webcam path. The existing UI FPS
+  measurement remains the whole-loop diagnostic.
+
+The configurable `max_mean_displacement` defaults to `0.15` normalized crop
+units. It marks a large change as `possible_discontinuity`; this is a threshold
+flag, not a determination that tracking failed or movement was invalid. It
+does not suppress coordinates. The valid observation becomes the next baseline.
+A no-face or invalid-landmark frame clears the baseline, so reacquisition is
+reported as `initialized` without a displacement comparison. The `0.15` value
+is an initial, configurable guardrail and has not been calibrated against
+camera or hardware data. Each frame is independently YuNet-cropped, rotated to
+align the eye line, then resized to 224 × 224 before MediaPipe runs.
+Consequently this metric measures changes in selected landmark positions
+within that changing, aligned normalized crop. Re-centering, rescaling, rotation correction, pose,
+and expression can reduce, amplify, or otherwise alter apparent motion; this
+is not camera-frame or real-world head displacement, nor pixel movement. The
+tracker only checks continuity for the currently selected face; it does not
+identify a person, associate multiple faces, compensate for crop/pose changes,
+or distinguish natural head movement from detector jitter.
+
+Run the camera-free automated tests from the repository root:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+The tracking tests use synthetic landmarks and need no webcam or downloaded
+model. To manually verify the integrated path, install the documented CV
+environment and model files, then run:
+
+```powershell
+.\.venv-deepface\Scripts\python.exe ai\computer_vision\webcam.py
+```
+
+Move your face gradually and observe the output via `S`: `initialized` should
+be followed by `tracked`, with a displacement value and non-negative latency.
+Move out of view, then return: the payload should show `no_face` followed by
+`initialized`. A sufficiently abrupt crop movement may report
+`possible_discontinuity`. This manual check requires an accessible webcam, the
+YuNet and Face Landmarker model files, and a functioning DeepFace environment; no
+hardware performance claim is made here.
+
 ## Project Structure
 
 ```text
@@ -176,6 +250,7 @@ ai/
     ├── emotion_analysis.py
     ├── face_processing.py
     ├── facial_features.py
+    ├── landmark_tracking.py
     ├── webcam.py
     └── README.md
 ```

@@ -11,6 +11,7 @@ def build_facial_affect_output(
     features=None,
     face_detected=False,
     timestamp_utc=None,
+    tracking=None,
 ):
     """Build a stable, JSON-compatible facial output for backend integration.
 
@@ -68,6 +69,8 @@ def build_facial_affect_output(
         },
         "geometry": geometry,
         "feature_vector": [geometry[name] for name in feature_names],
+        # Additive field: existing schema 1.0 fields and meanings stay stable.
+        "tracking": tracking,
     }
 
 def handle_output_key(key, facial_affect):

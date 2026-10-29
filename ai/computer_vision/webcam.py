@@ -11,11 +11,13 @@ if __package__:
     from .emotion_analysis import analyze_emotion, display_emotion
     from .face_processing import align_face, detect_faces, face_eye_roll_degrees, normalize_face, preprocess_frame
     from .facial_features import create_feature_vector, draw_landmarks, extract_facial_features
+    from .landmark_tracking import FacialLandmarkTracker
 else:
     from affect_output import build_facial_affect_output, handle_output_key
     from emotion_analysis import analyze_emotion, display_emotion
     from face_processing import align_face, detect_faces, face_eye_roll_degrees, normalize_face, preprocess_frame
     from facial_features import create_feature_vector, draw_landmarks, extract_facial_features
+    from landmark_tracking import FacialLandmarkTracker
 
 
 # Main webcam pipeline
@@ -96,6 +98,8 @@ def start_webcam():
     latest_emotion = None
     last_emotion_time = 0.0
     latest_facial_affect = build_facial_affect_output()
+    landmark_tracker = FacialLandmarkTracker()
+    frame_id = 0
     fps_started_at = time.perf_counter()
     fps_frame_count = 0
     current_fps = 0.0
@@ -112,6 +116,7 @@ def start_webcam():
             if not ret:
                 print("Unable to read frame")
                 break
+            frame_id += 1
 
             # --------------------------------------
             # Preprocessing
@@ -121,6 +126,14 @@ def start_webcam():
 
             if processed_frame is None:
                 print("Invalid frame")
+                tracking = landmark_tracker.update(
+                    face_detected=False,
+                    frame_id=frame_id,
+                )
+                latest_facial_affect = build_facial_affect_output(
+                    face_detected=False,
+                    tracking=tracking,
+                )
                 continue
 
             display_frame = (
@@ -161,8 +174,13 @@ def start_webcam():
 
 
             if faces is None or len(faces) == 0:
+                tracking = landmark_tracker.update(
+                    face_detected=False,
+                    frame_id=frame_id,
+                )
                 latest_facial_affect = build_facial_affect_output(
-                    face_detected=False
+                    face_detected=False,
+                    tracking=tracking,
                 )
                 cv2.putText(
                     display_frame,
@@ -214,6 +232,11 @@ def start_webcam():
             )
 
             if aligned_face is None:
+                tracking = landmark_tracker.update(frame_id=frame_id)
+                latest_facial_affect = build_facial_affect_output(
+                    face_detected=True,
+                    tracking=tracking,
+                )
                 continue
 
             normalized_face = normalize_face(
@@ -221,6 +244,11 @@ def start_webcam():
             )
 
             if normalized_face is None:
+                tracking = landmark_tracker.update(frame_id=frame_id)
+                latest_facial_affect = build_facial_affect_output(
+                    face_detected=True,
+                    tracking=tracking,
+                )
                 continue
 
             # Temporary diagnostic window for validating facial alignment.
@@ -262,6 +290,7 @@ def start_webcam():
                 data=rgb_face
             )
 
+            landmark_started_ns = time.perf_counter_ns()
             landmark_result = (
                 face_landmarker.detect(mp_image)
             )
@@ -271,6 +300,14 @@ def start_webcam():
                 landmarks = (
                     landmark_result.face_landmarks[0]
                 )
+
+                tracking = landmark_tracker.update(
+                    landmarks,
+                    frame_id=frame_id,
+                )
+                tracking["processing_latency_ms"] = (
+                    time.perf_counter_ns() - landmark_started_ns
+                ) / 1_000_000
 
                 draw_landmarks(
                     normalized_face,
@@ -297,6 +334,13 @@ def start_webcam():
                 # when the project integration is implemented.
             else:
                 features = None
+                tracking = landmark_tracker.update(
+                    None,
+                    frame_id=frame_id,
+                )
+                tracking["processing_latency_ms"] = (
+                    time.perf_counter_ns() - landmark_started_ns
+                ) / 1_000_000
 
             # --------------------------------------
             # DeepFace emotion inference
@@ -323,6 +367,7 @@ def start_webcam():
                 emotion_result=latest_emotion,
                 features=features,
                 face_detected=True,
+                tracking=tracking,
             )
 
             # --------------------------------------
