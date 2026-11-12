@@ -154,6 +154,7 @@ def analyze_text(text: str) -> Dict[str, Any]:
             "vader_compound": 0.0,
             "negative_score": 0.0,
             "positive_score": 0.0,
+            "neutral_score": 1.0,
             "language_negativity_signal": 0.0,
             "negative_word_ratio": 0.0,
             "positive_word_ratio": 0.0,
@@ -208,6 +209,11 @@ def analyze_text(text: str) -> Dict[str, Any]:
         + 0.25 * positive_transformer
         + 0.15 * min(positive_ratio * 8.0, 1.0),
     )
+    # VADER-based neutrality heuristic, not a calibrated probability.
+    neutral_score = round(
+        max(0.0, min(1.0, 1.0 - abs(vader_compound))),
+        4,
+    )
 
     language_signal, risk_level = _language_signal(
         max(0.0, -vader_compound),
@@ -221,6 +227,7 @@ def analyze_text(text: str) -> Dict[str, Any]:
         "sentiment_label": sentiment_label,
         "vader_compound": round(vader_compound, 4),
         "negative_score": round(negative_score, 4),
+        "neutral_score": neutral_score,
         "positive_score": round(positive_score, 4),
         "language_negativity_signal": language_signal,
         "negative_word_ratio": round(negative_ratio, 4),

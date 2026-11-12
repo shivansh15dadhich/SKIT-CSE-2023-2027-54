@@ -1,0 +1,61 @@
+model,category,text,expected_label,predicted_label,confidence
+BERT,clear_positive,I had a wonderful day and feel happy.,positive,positive,0.9995
+BERT,clear_positive,I am grateful for all the support I received.,positive,positive,0.9946
+BERT,clear_positive,Today was productive and enjoyable.,positive,positive,0.9996
+BERT,clear_positive,I feel confident about my future.,positive,positive,0.9993
+BERT,clear_positive,Spending time with my friends made me smile.,positive,positive,0.9996
+BERT,clear_positive,I am excited about my new opportunity.,positive,positive,0.9994
+BERT,clear_positive,Everything went better than I expected.,positive,positive,0.9975
+BERT,clear_positive,I feel peaceful and satisfied today.,positive,positive,0.9993
+BERT,clear_positive,I successfully completed my goals.,positive,positive,0.9992
+BERT,clear_positive,I am proud of my progress.,positive,positive,0.9994
+BERT,clear_negative,I feel sad and overwhelmed lately.,negative,negative,0.8015
+BERT,clear_negative,Nothing seems to be going right today.,negative,negative,0.9979
+BERT,clear_negative,I am disappointed with the result.,negative,negative,0.999
+BERT,clear_negative,I feel lonely and exhausted.,negative,negative,0.9983
+BERT,clear_negative,The situation made me very upset.,negative,negative,0.986
+BERT,clear_negative,I am frustrated with my performance.,negative,negative,0.999
+BERT,clear_negative,I had a terrible and stressful day.,negative,negative,0.9959
+BERT,clear_negative,I regret the decision I made.,negative,negative,0.9951
+BERT,clear_negative,I feel hopeless about this result.,negative,negative,0.9987
+BERT,clear_negative,I am unhappy with how things turned out.,negative,negative,0.9986
+BERT,negation,I am not unhappy with how things went.,positive,positive,0.9986
+BERT,negation,I do not feel happy about this situation.,negative,negative,0.9984
+BERT,mixed,I am happy about my success but worried about tomorrow.,positive,positive,0.6256
+BERT,mixed,I achieved my goal but feel disappointed and stressed.,negative,negative,0.9969
+BERT,mixed,"I was nervous at first, but I enjoyed the experience.",positive,positive,0.9995
+BERT,neutral,I attended classes and completed my assignments.,not_applicable,positive,0.9905
+BERT,neutral,The meeting is scheduled for Monday morning.,not_applicable,positive,0.508
+BERT,neutral,I travelled to college by bus today.,not_applicable,positive,0.7178
+BERT,neutral,I submitted the project before the deadline.,not_applicable,negative,0.5452
+BERT,neutral,The library closes at six in the evening.,not_applicable,negative,0.7237
+RoBERTa,clear_positive,I had a wonderful day and feel happy.,positive,positive,0.9989
+RoBERTa,clear_positive,I am grateful for all the support I received.,positive,positive,0.9989
+RoBERTa,clear_positive,Today was productive and enjoyable.,positive,positive,0.9989
+RoBERTa,clear_positive,I feel confident about my future.,positive,positive,0.9988
+RoBERTa,clear_positive,Spending time with my friends made me smile.,positive,positive,0.9989
+RoBERTa,clear_positive,I am excited about my new opportunity.,positive,positive,0.9989
+RoBERTa,clear_positive,Everything went better than I expected.,positive,positive,0.9988
+RoBERTa,clear_positive,I feel peaceful and satisfied today.,positive,positive,0.9989
+RoBERTa,clear_positive,I successfully completed my goals.,positive,positive,0.9988
+RoBERTa,clear_positive,I am proud of my progress.,positive,positive,0.9988
+RoBERTa,clear_negative,I feel sad and overwhelmed lately.,negative,negative,0.9993
+RoBERTa,clear_negative,Nothing seems to be going right today.,negative,negative,0.9995
+RoBERTa,clear_negative,I am disappointed with the result.,negative,negative,0.9995
+RoBERTa,clear_negative,I feel lonely and exhausted.,negative,negative,0.9994
+RoBERTa,clear_negative,The situation made me very upset.,negative,negative,0.9988
+RoBERTa,clear_negative,I am frustrated with my performance.,negative,negative,0.9995
+RoBERTa,clear_negative,I had a terrible and stressful day.,negative,negative,0.9995
+RoBERTa,clear_negative,I regret the decision I made.,negative,negative,0.9994
+RoBERTa,clear_negative,I feel hopeless about this result.,negative,negative,0.9995
+RoBERTa,clear_negative,I am unhappy with how things turned out.,negative,negative,0.9995
+RoBERTa,negation,I am not unhappy with how things went.,positive,positive,0.9938
+RoBERTa,negation,I do not feel happy about this situation.,negative,negative,0.9995
+RoBERTa,mixed,I am happy about my success but worried about tomorrow.,positive,positive,0.9961
+RoBERTa,mixed,I achieved my goal but feel disappointed and stressed.,negative,negative,0.998
+RoBERTa,mixed,"I was nervous at first, but I enjoyed the experience.",positive,positive,0.9989
+RoBERTa,neutral,I attended classes and completed my assignments.,not_applicable,positive,0.9984
+RoBERTa,neutral,The meeting is scheduled for Monday morning.,not_applicable,positive,0.9984
+RoBERTa,neutral,I travelled to college by bus today.,not_applicable,positive,0.9972
+RoBERTa,neutral,I submitted the project before the deadline.,not_applicable,positive,0.9983
+RoBERTa,neutral,The library closes at six in the evening.,not_applicable,negative,0.9889
